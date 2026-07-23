@@ -1,0 +1,91 @@
+name: Validate SaaS Audit Skill
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate required structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            SKILL.md README.md LICENSE.md CHANGELOG.md SECURITY.md SUPPORT.md CODE_OF_CONDUCT.md
+            install.sh install.ps1
+            assets/finding.schema.json assets/audit-config.example.yaml
+            scripts/init_audit.py scripts/validate_findings.py scripts/render_report.py
+            references/execution-playbook.md
+            references/security-rbac-tenancy.md
+            references/quality-ux-accessibility.md
+            references/data-api-infrastructure.md
+            references/evidence-reporting-release.md
+            references/master-audit-checklist.md
+            references/platform-installation.md
+            docs/FEATURES.md docs/ARCHITECTURE.md docs/QUALITY-IMPACT.md docs/RECOMMENDATIONS.md
+            docs/INSTALLATION.md docs/USAGE.md docs/REPORTING.md docs/TROUBLESHOOTING.md docs/CONTRIBUTING.md
+          )
+          for file in "${required[@]}"; do
+            test -s "$file" || { echo "Missing required file: $file"; exit 1; }
+          done
+
+      - name: Validate skill metadata JSON and Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          skill = Path('SKILL.md').read_text(encoding='utf-8')
+          assert skill.startswith('---\n'), 'SKILL.md must begin with YAML frontmatter'
+          assert re.search(r'^name: saas-audit$', skill, re.MULTILINE), 'Invalid skill name'
+          assert re.search(r'^description: .+', skill, re.MULTILINE), 'Missing description'
+          assert re.search(r'^license: MIT$', skill, re.MULTILINE), 'Invalid license metadata'
+          json.loads(Path('assets/finding.schema.json').read_text(encoding='utf-8'))
+          print('Metadata and JSON validated')
+          PY
+          python3 -m py_compile scripts/init_audit.py scripts/validate_findings.py scripts/render_report.py
+          python3 scripts/init_audit.py "CI Validation" --environment test --output /tmp/saas-audit-ci
+          python3 scripts/validate_findings.py /tmp/saas-audit-ci/ci-validation-test-*/data/findings.json
+
+      - name: Check relative Markdown links
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          failures = []
+          pattern = re.compile(r'\[[^\]]*\]\(([^)]+)\)')
+          for document in Path('.').rglob('*.md'):
+              text = document.read_text(encoding='utf-8')
+              for target in pattern.findall(text):
+                  if target.startswith(('http://', 'https://', '#', 'mailto:')):
+                      continue
+                  path = (document.parent / target.split('#', 1)[0]).resolve()
+                  if target.split('#', 1)[0] and not path.exists():
+                      failures.append(f'{document}: {target}')
+          if failures:
+              print('Broken relative links:')
+              print('\n'.join(failures))
+              sys.exit(1)
+          print('Relative links validated')
+          PY
