@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible problem in the skill, installer, schema, script or documentation
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove credentials, tokens, private URLs and customer data before submitting. Security vulnerabilities belong in the private process described in SECURITY.md.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - SKILL.md orchestration
+        - Installation
+        - Audit reference
+        - Documentation or Mermaid diagram
+        - Finding schema
+        - Workspace initializer
+        - Findings validator
+        - Report renderer
+        - GitHub validation workflow
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: 1.0.0 or commit SHA
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: AI client and operating system
+      placeholder: Claude Code on Windows 11, Codex on macOS, etc.
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Safe reproduction steps
+      description: Do not include live credentials, tokens, customer data or unauthorized targets.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I removed secrets and private data.
+          required: true
+        - label: This report does not request unauthorized or destructive testing.
+          required: true
