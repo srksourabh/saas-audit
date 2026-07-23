@@ -1,0 +1,76 @@
+audit:
+  application_name: example-saas
+  mode: hybrid
+  environment: staging
+  output_directory: saas-audit-output
+  authorization_reference: CHANGE-TICKET-0000
+  production_changes_allowed: false
+  destructive_tests_allowed: false
+
+scope:
+  repository: /path/to/repository
+  application_url: https://staging.example.com
+  api_base_url: https://api.staging.example.com
+  include:
+    - authentication
+    - rbac
+    - multi_tenancy
+    - functional_qa
+    - ui_ux
+    - accessibility
+    - application_security
+    - api_security
+    - database
+    - infrastructure
+    - supply_chain
+    - reliability
+    - performance
+    - privacy
+    - ai_llm
+  exclude: []
+
+accounts:
+  credentials_source: environment_variables
+  roles:
+    - name: super_admin
+      username_env: AUDIT_SUPER_ADMIN_USERNAME
+      password_env: AUDIT_SUPER_ADMIN_PASSWORD
+    - name: tenant_admin
+      username_env: AUDIT_TENANT_ADMIN_USERNAME
+      password_env: AUDIT_TENANT_ADMIN_PASSWORD
+    - name: standard_user
+      username_env: AUDIT_STANDARD_USER_USERNAME
+      password_env: AUDIT_STANDARD_USER_PASSWORD
+  tenants:
+    - tenant_a
+    - tenant_b
+
+evidence:
+  screenshots: true
+  console_logs: true
+  network_logs: true
+  command_outputs: true
+  redact_sensitive_data: true
+
+release_gate:
+  block_on_critical: true
+  block_on_high: true
+  require_critical_workflow_evidence: true
+  require_tenant_isolation_evidence: true
+  require_rollback_evidence: true
+
+performance:
+  safe_load_testing_only: true
+  maximum_concurrency: 5
+  maximum_requests_per_minute: 60
+
+reporting:
+  formats:
+    - markdown
+    - html
+    - pdf
+    - json
+    - xlsx
+  include_executive_summary: true
+  include_remediation_roadmap: true
+  include_release_verdict: true
