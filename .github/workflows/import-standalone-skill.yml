@@ -1,0 +1,146 @@
+name: Import standalone SaaS Audit skill
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/import-standalone-skill.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-skill:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out standalone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Import skill from source repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_DIR="$(mktemp -d)"
+          git clone --depth 1 https://github.com/srksourabh/saas-foundation.git "$SOURCE_DIR/source"
+
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            "$SOURCE_DIR/source/saas-audit/" ./
+
+          if [ -f "$SOURCE_DIR/source/LICENSE.md" ]; then
+            cp "$SOURCE_DIR/source/LICENSE.md" ./LICENSE.md
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              "https://github.com/srksourabh/saas-foundation/tree/main/saas-audit": "https://github.com/srksourabh/saas-audit",
+              "https://github.com/srksourabh/saas-foundation.git": "https://github.com/srksourabh/saas-audit.git",
+              "srksourabh/saas-foundation": "srksourabh/saas-audit",
+              "saas-foundation/saas-audit": "saas-audit",
+              "saas-foundation\\\\saas-audit": "saas-audit",
+              "](../LICENSE.md)": "](LICENSE.md)",
+          }
+
+          for path in Path('.').rglob('*'):
+              if not path.is_file() or '.git' in path.parts:
+                  continue
+              if path.suffix.lower() not in {'.md', '.sh', '.ps1', '.yaml', '.yml', '.json', '.py', '.txt'}:
+                  continue
+              text = path.read_text(encoding='utf-8')
+              updated = text
+              for old, new in replacements.items():
+                  updated = updated.replace(old, new)
+              if updated != text:
+                  path.write_text(updated, encoding='utf-8')
+          PY
+
+          cat > .gitignore <<'EOF'
+          .DS_Store
+          Thumbs.db
+          __pycache__/
+          *.pyc
+          .env
+          .env.*
+          !.env.example
+          saas-audit-output/
+          audit-output/
+          EOF
+
+          cat > CHANGELOG.md <<'EOF'
+          # Changelog
+
+          All notable changes to the standalone `saas-audit` Agent Skill are documented here.
+
+          ## 1.0.0 — 2026-07-23
+
+          - Published the complete skill as a standalone repository.
+          - Added cross-agent installation for Claude Code, Codex, Hermes, Anti-Gravity and VS Code-compatible Agent Skills clients.
+          - Added exhaustive SaaS audit coverage, evidence schemas, report tooling, Mermaid documentation and release verdict gates.
+          EOF
+
+      - name: Validate standalone skill structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            SKILL.md
+            README.md
+            install.sh
+            install.ps1
+            assets/finding.schema.json
+            assets/audit-config.example.yaml
+            scripts/init_audit.py
+            scripts/validate_findings.py
+            scripts/render_report.py
+            references/execution-playbook.md
+            references/security-rbac-tenancy.md
+            references/quality-ux-accessibility.md
+            references/data-api-infrastructure.md
+            references/evidence-reporting-release.md
+            references/master-audit-checklist.md
+            references/platform-installation.md
+            docs/FEATURES.md
+            docs/ARCHITECTURE.md
+            docs/INSTALLATION.md
+            docs/USAGE.md
+            docs/REPORTING.md
+            docs/TROUBLESHOOTING.md
+            docs/CONTRIBUTING.md
+          )
+
+          for file in "${required[@]}"; do
+            test -s "$file" || { echo "Missing required file: $file"; exit 1; }
+          done
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          skill = Path('SKILL.md').read_text(encoding='utf-8')
+          assert skill.startswith('---\n'), 'SKILL.md must start with YAML frontmatter'
+          assert '\nname: saas-audit\n' in skill, 'Skill name is missing or invalid'
+          assert '\ndescription:' in skill, 'Skill description is missing'
+          json.loads(Path('assets/finding.schema.json').read_text(encoding='utf-8'))
+          print('Standalone skill validation passed')
+          PY
+
+      - name: Commit imported repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No import changes required"
+          else
+            git commit -m "Publish standalone SaaS Audit skill"
+            git push origin main
+          fi
